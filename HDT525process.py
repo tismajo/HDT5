@@ -1,0 +1,85 @@
+"""
+UVG
+2024 - Segundo año - Primer semestre - Algoritmos y Estructuras de datos
+María José Girón Isidro 23559
+"""
+import simpy
+import random
+import statistics
+import matplotlib.pyplot as plt
+
+RANDSEED = 42
+PROCESSNUMBER = 25
+INTERVAL = 10
+RAMCAP = 100
+CPUSPED = 1
+process_times = []
+
+random.seed(RANDSEED)
+
+class Process:
+    def __init__(self, env, name, ram, cpu, process_times):
+        self.env = env
+        self.name = name
+        self.ram = ram
+        self.cpu = cpu
+        self.instructions = random.randint(1, 10)
+        self.action = env.process(self.run())
+        self.process_times = process_times
+
+    def run(self):
+        start_time = self.env.now
+        yield self.env.timeout(random.expovariate(1.0 / INTERVAL))
+        print(f"{self.env.now:.2f}: {self.name} Nuevo")
+
+        yield self.ram.get(random.randint(1, 10))
+
+        print(f"{self.env.now:.2f}: {self.name} Listo")
+        with self.cpu.request() as req:
+            yield req
+            while self.instructions > 0:
+                print(f"{self.env.now:.2f}: {self.name} Corriendo")
+                yield self.env.timeout(1 / CPUSPED)
+                self.instructions -= 3
+                if self.instructions <= 0:
+                    break
+                choice = random.randint(1, 21)
+                if choice == 1:
+                    print(f"{self.env.now:.2f}: {self.name} Esperando")
+                    yield self.env.timeout(1)
+                    print(f"{self.env.now:.2f}: {self.name} Listo (de Esperando)")
+                elif choice == 2:
+                    print(f"{self.env.now:.2f}: {self.name} Listo (de Corriendo)")
+                else:
+                    pass  
+        yield self.ram.put(random.randint(1, 10))
+        end_time = self.env.now
+        self.process_times.append(end_time - start_time)
+        print(f"{self.env.now:.2f}: {self.name} Terminado")
+
+
+def setup(env, PROCESSNUMBER, ram, cpu, process_times):
+    for num in range(PROCESSNUMBER):
+        p = Process(env, f"Proceso {num+1}", ram, cpu, process_times)
+        yield env.timeout(0.1)
+
+
+env = simpy.Environment()
+ram = simpy.Container(env, init=RAMCAP, capacity=RAMCAP)
+cpu = simpy.Resource(env, capacity=1)
+
+process_times = []
+env.process(setup(env, PROCESSNUMBER, ram, cpu, process_times))
+env.run()
+
+average_time = statistics.mean(process_times)
+std_deviation = statistics.stdev(process_times)
+
+plt.plot(range(1, PROCESSNUMBER+1), process_times, marker='o')
+plt.xlabel("Número de procesos")
+plt.ylabel("Tiempo del proceso")
+plt.title("Tiempo promedio para cada proceso")
+plt.show()
+
+print(f"El tiempo promedio del proceso es: {average_time:.2f}")
+print(f"Su desviación estándar es: {std_deviation:.2f}")
